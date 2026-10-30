@@ -1,63 +1,41 @@
 # =============================================================================
-#  Daily Briefing: your preferences
+#  每日简报：你的偏好设置（中文起点版）
 # =============================================================================
-#  This is the ONE file to edit to make the briefing your own. It does NOT
-#  contain any secrets (API keys stay in .env / GitHub Secrets).
-#  Edit it, commit, and the next run uses your choices.
+#  这是唯一一个需要你改的文件，改完就能让简报变成你的样子。它里面
+#  不放任何密钥（API 密钥放在 .env 文件或 GitHub Secrets 里）。
+#  改完提交，下一次运行就会用你的新设置。
+#  本版基于 tballochi/daily-briefing 改：主题只盯 AI / Agent，输出格式
+#  固定为“发生了什么 + 产品视角为什么重要 + 原文链接 + 信源可信度徽章”。
 # =============================================================================
 
-# Name shown in the email subject line and header. Make it topic-agnostic if your
-# topics aren't all "tech", e.g. "Daily Briefing", "Morning Digest", "Tom's Brief".
-title: Daily Briefing
+# 邮件标题和简报顶部的名字。
+title: 自信鑫的 AI 简报
 
-# Small line at the bottom of the email. Set to "" to leave it out.
-footer_note: Stay ahead of the curve
+# 邮件底部的一行小字。设为 "" 就不显示。
+footer_note: 每天早上，AI / Agent 的事早知道
 
-# How many stories the briefing contains each morning.
+# 每期简报放几条新闻。
 num_articles: 3
 
-# The Groq model the agent thinks with. Providers deprecate models regularly, so the
-# agent tries `model` first and degrades to `model_fallbacks` in order if it has been
-# decommissioned. A dead model slows the run down, it doesn't kill your briefing.
-# Check what's currently live: https://console.groq.com/docs/deprecations
-# You can also override the primary at runtime with the GROQ_MODEL env var.
+# Agent 用来思考的 Groq 模型。厂商会定期下线模型，所以 Agent 会先试
+# `model`，下线了就按 `model_fallbacks` 的顺序降级，不会让简报直接挂掉。
+# 模型下线只会让运行变慢，不会杀死简报。
+# 查哪些模型还活着：https://console.groq.com/docs/deprecations
+# 也可以用 GROQ_MODEL 环境变量在运行时覆盖主模型。
 model: openai/gpt-oss-120b
 model_fallbacks:
   - openai/gpt-oss-20b
   - qwen/qwen3.8-27b
 
-# The topics the agent researches. Free text, written the way you'd describe
-# your interests. The agent turns these into web searches and picks the best,
-# most recent, substantive stories across them. Add, remove, reword freely.
+# Agent 每天研究的主题。写成你平时描述兴趣的样子就行，Agent 会把它们
+# 变成网络搜索，挑最新、最实在的新闻。随时可以增、删、改。
+# 注意：主题里的英文关键词是给搜索引擎看的，能帮 Tavily 搜到更多一手英文
+# 信源；简报正文一律用中文写。
 topics:
   - AI & LLMs (GPT, Claude, Gemini, agents, LangChain/LangGraph, MCP)
-  - shipping & logistics tech
-  - automation & no-code (n8n, Zapier, Make)
-  - dev tools & open source
+  - AI Agent 产品与开源项目 (agents, MCP, LangGraph, CrewAI, Browser Use, n8n)
+  - AI 编程与开发者工具 (GitHub Copilot, Claude Code, Codex, Cursor, OpenCode)
 
-# OPTIONAL: a story that must ALWAYS be in the briefing, on top of your topics.
-# Useful for a niche you never want to miss. Delete this whole `focus:` block
-# if you don't want a guaranteed story.
-focus:
-  # Human label for the theme (used in the prompt and to recognise matches).
-  label: shipping / maritime / logistics
-  # Searched FIRST every run; if there's a fresh story about it, it's preferred.
-  # Leave empty ("") to just guarantee the theme without a priority subject.
-  priority_query: CMA CGM, Mistral AI
-  # Lowercase words/phrases that mark an article as belonging to this theme.
-  keywords:
-    - cma cgm
-    - mistral ai
-    - shipping
-    - maritime
-    - port
-    - container
-    - freight
-    - vessel
-    - supply chain
-    - logistics
-    - cargo
-    - maersk
-    - msc
-    - hapag
-    - terminal
+# 可选项：一个“保送”主题，每期必有一条相关新闻，优先级高于上面的主题。
+# 适合你绝不想错过的细分方向。不想要就把整个 `focus:` 段删掉。
+# 本中文起点版默认不设保送主题，简报纯按上面的主题选。

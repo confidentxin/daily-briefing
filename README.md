@@ -1,323 +1,124 @@
-<h1 align="center">Daily Briefing Agent</h1>
+# 自信鑫的 AI 简报 · 中文起点版
 
-<p align="center">
-  <strong>Wake up to an AI-written news briefing in your inbox every morning, on the
-  topics you choose, written from real freshly-searched articles.<br>100% free, no
-  server, runs entirely on GitHub Actions.</strong>
-</p>
+> 每天早上，一份只盯 **AI / Agent** 的中文简报：每条新闻写清"发生了什么 + 产品视角为什么重要 + 原文链接"，再带一个信源可信度徽章。
+> 本项目基于开源项目 [tballochi/daily-briefing](https://github.com/tballochi/daily-briefing) 改，搜索、去重、防编造的链路原样保留，只改了三处：中文主题配置、中文写作提示词、信源可信度徽章逻辑。
 
-<p align="center">
-  <a href="https://github.com/tballochi/daily-briefing/actions/workflows/ci.yml"><img alt="CI" src="https://github.com/tballochi/daily-briefing/actions/workflows/ci.yml/badge.svg"></a>
-  <a href="LICENSE"><img alt="License: MIT" src="https://img.shields.io/badge/license-MIT-blue.svg"></a>
-  <img alt="Python 3.11+" src="https://img.shields.io/badge/python-3.11%2B-blue.svg">
-</p>
+## 它是怎么工作的
 
-<p align="center">
-  <img src="docs/screenshot-email.png" alt="A rendered Daily Briefing email: three summarised stories with sources and dates, a word of the day, and a quote of the day." width="700">
-</p>
+```
+你运行 python main.py --dry-run
+  → 研究：大模型（Groq）自己决定搜什么
+             → 调 Tavily 实时搜网（最多 6 次），跳过以前发过的文章
+             → 选出最强的 3 篇
+  → 写作：再调一次大模型，只根据真实原文片段写中文摘要
+             （固定两段：发生了什么 / 为什么重要；链接只用搜索结果里的，绝不编）
+  → 预览：终端打印纯文本简报，并生成 data/preview.html，用浏览器打开就是
+    未来邮件的样子；不发送、不记录
+```
 
-<p align="center"><em>A real briefing. Every headline, summary and link in it was
-chosen and written by the agent.</em></p>
+三个防翻车设计，原项目就带好了，本版原样保留：
 
----
+- **防重复发**：一天最多发一封，多个定时触发也不会发两遍。
+- **防重复内容**：发过的文章按网址 + 标题记下来，60 天内不再选。
+- **模型下线不宕机**：`config.yaml` 里有 `model` + `model_fallbacks` 备选链，主模型被厂商下线了就自动降到下一个。
 
-It's 8am. Your coffee is still too hot to drink, so you open your inbox, and the only
-thing worth reading is already there. Three stories that actually matter to you, four
-sentences each, every source linked and dated. Nothing you were sent yesterday. No feed,
-no notifications, no twenty tabs you'll never get back to.
+## 本版改了什么（三处）
 
-While you were asleep, an agent searched the web on your topics, threw out the filler,
-read what was left and wrote it up. By the time your coffee is drinkable, you're caught
-up, and you close the tab and get on with your day.
+| 位置 | 改动 |
+|---|---|
+| `config.yaml` | 主题只留 AI / Agent 三条，删掉了原作者的航运保送主题；标题改成"自信鑫的 AI 简报"；注释全部中文 |
+| `agent.py` 写作提示词 | 摘要固定两段中文："发生了什么" + "为什么重要（产品视角）"；只写片段里有的事实，不编造 |
+| `agent.py` 徽章逻辑 | 新增 `source_credibility()`：只看链接域名，分三档——官方一手 / 主流媒体 / 待核实；域名表写在代码里，可自行增减 |
 
----
+搜索、去重、写作、渲染、发邮件、记历史的链路一字没动。
 
-## Try it in 2 minutes
+## 快速开始：从申请免费 key 到跑出第一份简报
 
-You need **two free API keys**. No Gmail, no deploy, no account anywhere else.
+只需要两样东西：Python 3.11+，和两个免费密钥。**项目改好之前你什么都不用做；跑起来才需要你自己申请 key**（密钥只存在你自己电脑的 `.env` 里，不会进仓库）。
+
+### 第 1 步：拿到代码，装依赖
 
 ```bash
-git clone https://github.com/tballochi/daily-briefing.git
+git clone https://github.com/confidentxin/daily-briefing.git
 cd daily-briefing
-pip install -r requirements.txt
-
-python main.py --setup      # asks for your keys and checks each one works
-python main.py --dry-run    # builds a real briefing, sends nothing
+pip install -r requirements.txt   # 只有 5 个依赖
 ```
 
-Both keys are free: [Groq](https://console.groq.com/keys) and
-[Tavily](https://app.tavily.com). Prefer not to use the wizard? Put them in a `.env`
-file yourself as `GROQ_API_KEY=` and `TAVILY_API_KEY=`.
+### 第 2 步：申请两个免费密钥（几分钟搞定）
 
-`--dry-run` researches the news, writes the briefing, prints it to your terminal and
-saves the rendered email to `data/preview.html`. **It sends nothing and stores nothing**,
-so you can see exactly what you'd be getting before setting up delivery.
+**Groq 密钥（负责思考和写作），免费，密钥以 `gsk_` 开头：**
 
-<p align="center">
-  <img src="docs/screenshot-dry-run.png" alt="Terminal output of python main.py --dry-run: the agent logs its model chain and its searches, then prints three summarised stories with their links, and confirms nothing was emailed or recorded." width="720">
-</p>
+1. 打开 https://console.groq.com ，用 Google / GitHub 账号登录（不用绑卡）。
+2. 左侧点 **API Keys** → **Create API Key**，名字随便填（比如 `daily-briefing`），点创建。
+3. 弹出的密钥只显示一次，马上复制下来。
 
-Then edit `config.yaml` to your own topics and run it again.
+**Tavily 密钥（负责实时搜网），免费（每月 1000 积分），密钥以 `tvly-` 开头：**
 
----
+1. 打开 https://tavily.com ，点右上角 **Get started** / **Sign up** 注册登录（不用绑卡）。
+2. 登录后进控制台首页就能看到你的 API Key，直接复制。
 
-## What it actually does
+### 第 3 步：把密钥填进 `.env`
 
-Every morning, an autonomous agent:
-
-1. **Researches.** Runs live web searches across *your* topics, judges the results, and
-   skips anything it already sent you on a previous day.
-2. **Writes.** Summarises the chosen stories from their real source text. No
-   hallucinated facts, no fabricated links: every URL comes from a real search result.
-3. **Delivers.** Emails you a newspaper-style digest, at the time you choose.
-
-It's a tool-using agent, not a fixed script: it decides what to search, judges what's
-worth keeping, and searches again if the results are thin.
-
-<p align="center">
-  <img src="docs/architecture.svg" alt="A free cron service posts to GitHub Actions at 08:00. The runner checks out the repo, runs the agent against Tavily and Groq, sends the email through Gmail SMTP, commits its de-duplication state back to the repo, and disappears." width="820">
-</p>
-
-**In the email:** your N top stories, each with a factual summary, source and publication
-date · a word of the day · a quote of the day. Optionally, one slot is reserved for a
-**focus theme** you never want to miss.
-
----
-
-## Make it yours: `config.yaml`
-
-One readable file, no code, no secrets:
-
-```yaml
-title: Daily Briefing        # shown in the email subject + header
-num_articles: 3              # how many stories per morning
-
-topics:                      # what the agent researches (free text)
-  - AI & LLMs (GPT, Claude, agents, MCP)
-  - automation & no-code (n8n, Zapier, Make)
-  - dev tools & open source
-
-focus:                       # OPTIONAL: a story that's ALWAYS included
-  label: shipping / maritime / logistics
-  priority_query: CMA CGM    # searched first; preferred when there's fresh news
-  keywords: [cma cgm, shipping, maritime, container, freight]
-
-model: openai/gpt-oss-120b   # the Groq model the agent thinks with
-model_fallbacks:             # tried in order if the one above is retired
-  - openai/gpt-oss-20b
-  - qwen/qwen3.8-27b
+```bash
+cp .env.example .env
 ```
 
-Topics are free text, so point it at finance, climate, football, your industry, whatever
-you want to wake up informed about. Don't want a guaranteed story? Delete the `focus:`
-block. No `config.yaml` at all? Sensible defaults keep it running.
+用任意文本编辑器打开 `.env`，只改前两行（其他三行是发邮件用的，试跑不用填）：
 
----
+```
+GROQ_API_KEY=gsk_你复制的密钥
+TAVILY_API_KEY=tvly-你复制的密钥
+```
 
-## Deploy free on GitHub Actions
-
-Nothing stays on. No server, no container, no cron on your laptop.
-
-**1.** Click **[Use this template](https://github.com/tballochi/daily-briefing/generate)**
-to get your own copy (or fork it). Then clone it and run:
+也可以跑向导逐个验证（会当场告诉你密钥对不对）：
 
 ```bash
 python main.py --setup
 ```
 
-The wizard asks for each key, **verifies it against the real API before saving**, so a wrong
-Gmail App Password fails here instead of silently at 8am tomorrow. It clears the inherited
-de-duplication history, offers to upload your secrets with the `gh` CLI, and prints your
-pinger URL with your repo already filled in.
-
-**2.** Add 5 **Settings → Secrets and variables → Actions** secrets (the wizard can do
-this for you if you have the `gh` CLI):
-
-| Secret | Where to get it |
-|--------|-----------------|
-| `GROQ_API_KEY` | [console.groq.com/keys](https://console.groq.com/keys), free |
-| `TAVILY_API_KEY` | [app.tavily.com](https://app.tavily.com), free, 1000 searches/month |
-| `GMAIL_ADDRESS` | the Gmail that sends the briefing |
-| `GMAIL_APP_PASSWORD` | [16-char App Password](https://myaccount.google.com/apppasswords) (needs 2FA). **Not** your Gmail password |
-| `RECIPIENT_EMAIL` | where it gets delivered |
-
-**3.** Test it now: **Actions → Daily Briefing → Run workflow**, tick `force`.
-
-**4.** Make it punctual by adding a free external pinger (5 minutes, one time):
-
-<details>
-<summary><strong>Why, and how to set up the free cron pinger</strong></summary>
-
-<br>
-
-GitHub's own `schedule:` cron is unreliable on low-activity repos: it drops most
-triggers and can fire hours late, so "before 10am" isn't guaranteed by it alone. The fix,
-still 100% free, is a tiny external cron that calls GitHub at a fixed time. GitHub's own
-cron stays on as a best-effort backup.
-
-**a) Create a GitHub token** at [new fine-grained token](https://github.com/settings/personal-access-tokens/new)
-- Repository access: *Only select repositories* → this repo
-- Permissions → **Actions: Read and write**
-- Copy the `github_pat_...` value
-
-**b) Create a free job on [cron-job.org](https://cron-job.org)**, daily at ~08:00 in your
-timezone:
-
-- **Method**: `POST`
-- **URL**: `https://api.github.com/repos/<you>/daily-briefing/actions/workflows/daily-briefing.yml/dispatches`
-- **Body**: `{"ref":"main"}`
-- **Headers**:
-  - `Accept: application/vnd.github+json`
-  - `Authorization: Bearer <your github_pat_...>`
-  - `X-GitHub-Api-Version: 2022-11-28`
-
-A successful call returns **HTTP 204**. The pinger fires *without* forcing, so it still
-passes the morning-window and once-a-day guards, so it can never double-send.
-
-> Renamed the repo later? Update the URL by hand; GitHub redirects GETs but not
-> reliably POSTs.
-
-</details>
-
----
-
-## Design choices
-
-The things this does differently, and what they cost:
-
-| | |
-|---|---|
-| **No paid step, anywhere** | It runs inside the Groq, Tavily and GitHub Actions free tiers. A daily run uses ~180 of Tavily's 1000 monthly searches. Worth being clear: those are three companies' free tiers, not a guarantee I can make. If one changes, this changes. |
-| **No infrastructure** | No server, no Docker, no database, no always-on process. The trade-off is that you're running on GitHub's schedule and inside their limits. |
-| **An agent, not an RSS pipeline** | It picks its own search queries, judges result quality, and searches again when results are thin, which also means it's slower and less predictable than a feed reader. |
-| **Never repeats a story** | Sent articles are matched by normalised URL *and* headline, kept in `data/history.json` and committed back to the repo. No database to run; the trade-off is a daily commit in your history. |
-| **Never double-sends** | A morning-window guard plus a once-a-day guard, so several triggers still produce one email. |
-| **Survives model deprecations** | The model is configurable with a fallback chain. This exists because a hardcoded model was retired by the provider and took the agent down for a day. |
-| **Grounded summaries** | Written only from real source text, and any URL the model didn't actually find in a search result is dropped before it can reach the email. |
-| **Keys stay yours** | They live in your own repo's secrets or your local `.env`. The agent talks to Groq, Tavily and Gmail's SMTP server, and nothing else. |
-
----
-
-## FAQ
-
-<details>
-<summary><strong>What does it cost?</strong></summary><br>
-
-Nothing. A run uses a handful of Groq calls and up to 6 Tavily searches, well inside both
-free tiers (Tavily gives 1000 searches/month; the briefing uses ~180). GitHub Actions is
-free for public repos. cron-job.org is free. There is no paid tier to graduate into.
-</details>
-
-<details>
-<summary><strong>Where do my API keys live? Is anything sent to you?</strong></summary><br>
-
-Your keys live in **your** GitHub repo's Actions secrets (or your local `.env`, which is
-gitignored). The agent talks only to Groq, Tavily and Gmail's SMTP server. Nothing is
-sent anywhere else, and the author never sees your keys, topics or briefings.
-</details>
-
-<details>
-<summary><strong>How do I change the model?</strong></summary><br>
-
-Edit `model:` in `config.yaml` to any model your Groq key can reach, and list backups
-under `model_fallbacks:`. You can also override it without editing the file by setting
-the `GROQ_MODEL` environment variable (or a `GROQ_MODEL` GitHub Actions *variable*).
-Providers retire models regularly, so check
-[Groq's deprecations page](https://console.groq.com/docs/deprecations) for what's live.
-</details>
-
-<details>
-<summary><strong>Can I use something other than Gmail?</strong></summary><br>
-
-Yes, with a small edit. `email_sender.py` uses plain `smtplib` over SSL, so pointing
-`SMTP_HOST` / `SMTP_PORT` at another provider (Fastmail, Zoho, a company relay) and using
-that account's credentials works. Gmail is the default only because its App Passwords are
-free and easy.
-</details>
-
-<details>
-<summary><strong>Can I change the delivery time?</strong></summary><br>
-
-Yes. The time is set by your cron-job.org job; the workflow only enforces a
-**06:00–11:00 Europe/Paris** safety window so a stray trigger can't email you at night.
-To move outside that window, edit the hour list in the gate step of
-`.github/workflows/daily-briefing.yml` (and `TIMEZONE` in `scheduler.py` for local runs).
-</details>
-
-<details>
-<summary><strong>What if it fails one morning?</strong></summary><br>
-
-It retries once after two minutes. If that also fails you get a short "couldn't send
-today" email explaining why, the full traceback goes to the Actions log, and the run is
-marked failed, so a broken morning is red in the Actions tab rather than a green check.
-The next morning's run is unaffected.
-</details>
-
-<details>
-<summary><strong>Can I get more than 3 stories, or several briefings a day?</strong></summary><br>
-
-Set `num_articles:` to whatever you like. One briefing per day is enforced by design,
-because the de-duplication history keys on the date, so a second daily send would need that
-guard changed.
-</details>
-
----
-
-## Run it locally instead
+### 第 4 步：试跑，看到第一份简报
 
 ```bash
-python main.py --setup    # guided setup (or copy .env.example by hand)
-python main.py --dry-run  # preview only, sends nothing
-python main.py --now      # build & send one briefing now
-python main.py            # run the scheduler (daily at 09:00 Europe/Paris)
+python main.py --dry-run
 ```
 
-## Tests
+成功长这样：终端打印出 3 篇中文摘要（每篇两段 + 徽章 + 链接），并生成 `data/preview.html`，用浏览器打开就是未来邮件的样子。**只预览，不发送，不记录。** 看到这个文件，"跑通"就算达成。
+
+## 改你自己的第一处：只改 `config.yaml`
+
+不用碰代码，改这个文件就能换主题、换标题、换条数：
+
+1. `topics:` 里增删改主题（英文关键词是给搜索引擎看的，搜得更全；正文一律中文）。
+2. `title:` 换简报名字，邮件标题和预览标题会跟着变。
+3. `num_articles:` 换每期条数。
+
+改完再跑一次 `python main.py --dry-run`，对比 `data/preview.html` 前后差别——这就是 vibecoding 的核心循环：**改一处 → 跑一次 → 看结果 → 确认是自己改对了**。
+
+## 常见报错排查
+
+| 现象 | 一般原因 / 做法 |
+|---|---|
+| `TAVILY_API_KEY is not set` / `GROQ_API_KEY is not set` | `.env` 没建或没填。确认 `.env` 和 `main.py` 在同一个目录，且密钥前后没多空格、没带引号 |
+| 密钥报错 401 | 密钥抄错了或带了多余字符。重新从官网复制一遍；Groq 密钥以 `gsk_` 开头，Tavily 以 `tvly-` 开头 |
+| 429 / 限速 | Groq 免费额度是每分钟 12000 token，项目自带 85% 的节流保护。等一分钟再跑；连续出现就换个时间段 |
+| 模型 404 / 下线 | Groq 定期下线模型。项目会自动按 `model_fallbacks` 降级；也可以去 https://console.groq.com/docs/deprecations 查还活着的模型，改 `config.yaml` 的 `model:` |
+| dry-run 搜不到 / 只有片段 | 当天相关新闻少，或片段太薄。写作环节会只写能确认的部分，不硬编；换个时间再跑一次 |
+| `pip install` 失败 | 确认 Python ≥ 3.11（`python --version`）。网络问题可重试，或换 pip 镜像源 |
+
+跑测试（不用密钥、不用联网）：
 
 ```bash
 pip install -r requirements-dev.txt
-pytest -q
+python -m pytest tests/ -q
 ```
 
-Mocked network, no API keys needed, runs in under a second. Covers the model fallback
-chain, config defaults, de-duplication and both send guards. CI runs it on every push.
+## 下一步（本版不做）
 
-## Tech stack
+本版只做到"本地 dry-run 跑出第一份中文简报"。跑通之后再做：
 
-| Tool | Role |
-|------|------|
-| Python 3.11+ | Core language. 5 dependencies, no framework |
-| Groq (`openai/gpt-oss-120b`) | The agent's brain. Configurable, with fallbacks |
-| Tavily | Real-time news search |
-| GitHub Actions | Runtime for the daily job |
-| cron-job.org | External pinger, so it fires on time |
+- **发邮件**：在 `.env` 里补齐 Gmail 的三个值（Gmail 应用专用密码，不是登录密码），跑 `python main.py --now` 真发一封。
+- **定时每天自动跑**：原项目用 GitHub Actions + Secrets，部署方法见原仓库 README 的部署章节；也可以先在自己电脑上用系统定时任务每天跑 `--now`。
 
-## Project structure
+## 致谢
 
-```
-daily-briefing/
-├── config.yaml            # your preferences: title, topics, focus, model
-├── config.py              # loads/validates config.yaml, checks required secrets
-├── main.py                # entry point (--setup / --dry-run / --now)
-├── setup_wizard.py        # guided setup, verifies every key
-├── agent.py               # the agent: research loop, writing, HTML rendering
-├── email_sender.py        # Gmail delivery
-├── scheduler.py           # the briefing jobs + local daily scheduler
-├── history.py             # remembers sent articles (no repeats)
-├── data/history.json      # the de-duplication memory
-├── docs/                  # screenshot + sample briefing
-├── tests/                 # pytest suite (no network)
-└── .github/workflows/     # daily-briefing.yml (the morning run) + ci.yml
-```
-
----
-
-## Contributing
-
-Issues and PRs welcome. See [CONTRIBUTING.md](CONTRIBUTING.md).
-
-## License
-
-MIT. See [LICENSE](LICENSE).
-
-Built by [Timoté Ballochi](https://github.com/tballochi).
+上游项目 [tballochi/daily-briefing](https://github.com/tballochi/daily-briefing)（MIT 协议），本版是它的中文起点分支。许可证见 `LICENSE`。

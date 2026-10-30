@@ -61,39 +61,36 @@ MODEL_CHAIN = CFG.model_chain
 
 
 def _build_system_prompt() -> str:
-    """Assemble the research agent's system prompt from the user's config.yaml."""
+    """根据 config.yaml 组装研究 Agent 的系统提示词（中文）。"""
     topics = "\n".join(f"- {t}" for t in CFG.topics)
-    prompt = f"""You are an autonomous tech-news research agent. Your job is to find \
-the {TARGET_ARTICLES} most important and recent technology stories of the day for the \
-user, then hand them off for writing.
+    prompt = f"""你是一个自主的 AI 新闻研究 Agent。今天的任务是：为用户找到当天最重要、
+最新的 {TARGET_ARTICLES} 条 AI / Agent 领域新闻，然后交给写作环节。
 
-How you work:
-- Call `search_news` to search the web. Run a few searches to cover the user's \
-interests:
+工作方式：
+- 调用 `search_news` 搜索网络。围绕用户的兴趣多搜几次：
 {topics}
-Read the results, judge their quality, and run follow-up searches if needed.
-- Pick SUBSTANTIVE individual articles only. Reject index pages, news round-ups, \
-homepages or vague titles like "New Ship News" — they are not real stories.
-- Each result is tagged `already_sent: true` if it was sent in a previous briefing. \
-NEVER pick an already_sent article."""
+读搜索结果、判断质量，需要时再追搜。
+- 只选内容扎实的单篇新闻。拒绝索引页、新闻合集、首页和标题含糊的页面
+（比如 "New Ship News"）——它们不是真正的新闻。
+- 每条结果都带有 `already_sent: true` 标记，表示它已在往期简报里发过。
+绝不要选已经发过的文章。"""
 
     if FOCUS:
         prompt += f"""
-- MANDATORY: exactly ONE of the {TARGET_ARTICLES} stories must be about \
-{FOCUS['label']}."""
+- 强制要求：{TARGET_ARTICLES} 条新闻里必须恰好有一条是关于 \
+{FOCUS['label']} 的。"""
         if FOCUS["priority_query"]:
-            prompt += f""" Search specifically for "{FOCUS['priority_query']}" first — \
-if there is a relevant, recent story about it, pick it. If not, pick another strong \
-{FOCUS['label']} story instead. Always run a "{FOCUS['priority_query']}" search and a \
-general {FOCUS['label']} search."""
+            prompt += f""" 先专门搜索 "{FOCUS['priority_query']}" —— \
+如果有相关的新鲜新闻就优先选它；没有的话，再选另一条有分量的 \
+{FOCUS['label']} 新闻。务必跑一次 "{FOCUS['priority_query']}" 搜索和一次 \
+通用的 {FOCUS['label']} 搜索。"""
 
-    closing_focus = f" (one of them about {FOCUS['label']})" if FOCUS else ""
+    closing_focus = f"（其中一条关于 {FOCUS['label']}）" if FOCUS else ""
     prompt += f"""
-- When you have found the {TARGET_ARTICLES} strongest, distinct, non-duplicate \
-stories{closing_focus}, call `finalize_selection` with their exact URLs copied from \
-the results.
+- 当你找到 {TARGET_ARTICLES} 条最强、互不重复的新闻{closing_focus}后，调用 \
+`finalize_selection`，把它们的准确 URL 原样从搜索结果里抄过来。
 
-You only research and select. You do NOT write summaries — that happens later."""
+你只负责研究和挑选，不写摘要——摘要在后面的环节写。"""
     return prompt
 
 
@@ -106,15 +103,15 @@ TOOLS = [
         "function": {
             "name": "search_news",
             "description": (
-                "Search the web for recent news (last 7 days) on a query. Returns a "
-                "list of articles with title, url, snippet, date and an already_sent flag."
+                "按关键词搜索最近 7 天的新闻。返回文章列表，含标题、链接、"
+                "摘要、日期和是否已发过的标记。"
             ),
             "parameters": {
                 "type": "object",
                 "properties": {
                     "query": {
                         "type": "string",
-                        "description": "The news search query, e.g. 'Claude Gemini new model release'.",
+                        "description": "新闻搜索关键词，例如 'Claude Gemini 新模型发布'。",
                     }
                 },
                 "required": ["query"],
@@ -125,14 +122,14 @@ TOOLS = [
         "type": "function",
         "function": {
             "name": "finalize_selection",
-            "description": "Submit the 3 chosen articles once strong, non-duplicate stories are found.",
+            "description": "找到有分量、互不重复的新闻后，提交选中的 3 篇文章。",
             "parameters": {
                 "type": "object",
                 "properties": {
                     "urls": {
                         "type": "array",
                         "items": {"type": "string"},
-                        "description": "Exactly 3 URLs, copied verbatim from the search results.",
+                        "description": "恰好 3 个 URL，原样从搜索结果里抄过来。",
                     }
                 },
                 "required": ["urls"],
@@ -141,10 +138,21 @@ TOOLS = [
     },
 ]
 
+# 写作格式约定：每条摘要固定两段，中文写成。只改这里，提示词和渲染
+# 都会跟着变；测试会检查这两行标记一直在。
+SYNTHESIS_FORMAT_GUIDE = (
+    "每条摘要固定写两段，都用简体中文：\n"
+    "第一段以“发生了什么：”开头，一句话讲清这条新闻发生了什么；\n"
+    "第二段以“为什么重要（产品视角）：”开头，一到两句，从产品经理的视角\n"
+    "讲这条新闻为什么值得注意（对做 AI / Agent 产品有什么启发）。\n"
+    "只写片段里有的事实，不编造、不推断片段之外的事；片段太薄就只写能\n"
+    "确认的部分。语气专业、中性，不煽情、不给建议。"
+)
+
 SYNTHESIS_SYSTEM = (
-    "You are a technology journalist. You write concise, factual news-brief summaries "
-    "grounded ONLY in the source snippet provided for each article. Professional, "
-    "neutral tone. No filler, no opinion, no advice, no targeting of any reader."
+    "你是一名科技记者兼 AI 产品观察者。你写的简报摘要只基于每篇文章给定"
+    "的来源片段，用简体中文写。专业、中性、不煽情，不写空话，不给建议，"
+    "不针对任何读者。"
 )
 
 
@@ -704,41 +712,38 @@ def _synthesis_completion(client, messages: list) -> dict | None:
 
 
 def synthesize_briefing(selected: list[dict], today: str) -> dict:
-    """Write factual summaries (grounded in snippets) + word & quote of the day."""
+    """写中文摘要（只依据片段）+ 每日一词、每日一句。"""
     numbered = "\n\n".join(
-        f"[{i}] TITLE: {a.get('title', '')}\nSNIPPET: {a.get('snippet', '')}"
+        f"[{i}] 标题：{a.get('title', '')}\n片段：{a.get('snippet', '')}"
         for i, a in enumerate(selected, start=1)
     )
 
     used_words = history.recent_words()
     used_quotes = history.recent_quotes()
-    avoid_words = f" Do NOT reuse any of these recent words: {', '.join(used_words)}." if used_words else ""
+    avoid_words = f" 不要重复最近用过的这些词：{', '.join(used_words)}。" if used_words else ""
     avoid_quotes = (
-        f" Do NOT reuse any of these recent quotes: {' | '.join(used_quotes)}." if used_quotes else ""
+        f" 不要重复最近用过的这些名言：{' | '.join(used_quotes)}。" if used_quotes else ""
     )
 
-    user = f"""Today is {today}. Here are {len(selected)} selected articles:
+    user = f"""今天是 {today}。下面是选中的 {len(selected)} 篇文章：
 
 {numbered}
 
-For each article, write a 2-4 sentence factual news-brief summary about the story in
-its TITLE, based ONLY on its snippet. Focus strictly on that one story: IGNORE any
-unrelated headlines, "recent news also includes...", or round-up items that may
-appear in the snippet. Do not invent facts beyond the snippet; if it is thin,
-summarise only what is clearly about the title's story. No filler, no opinion, no
-"why it matters", vary the phrasing.
+{SYNTHESIS_FORMAT_GUIDE}
 
-Then add:
-- "word_of_the_day": a genuine, specific tech term (NOT something as generic as
-  "AI"; pick e.g. inference, embedding, idempotency, vector database, fine-tuning,
-  webhook, latency, quantization...) with a one-sentence definition and a natural
-  example sentence.{avoid_words}
-- "quote_of_the_day": a real, verifiable quote from a well-known tech leader, with
-  the author's name.{avoid_quotes}
+摘要只围绕标题那一个新闻写：忽略片段里出现的无关标题、“最近新闻还包括……”、
+合集类内容。不要编造片段之外的事实；片段太薄就只总结标题新闻里能确认的
+部分。不要写空话、不要发表观点、不要写“为什么重要”之外的发挥，换着花样写。
 
-Return ONLY JSON with this schema:
+然后再加：
+- "word_of_the_day"：一个真实、具体的技术术语（不要像 "AI" 这么泛；比如
+  推理、嵌入、幂等、向量数据库、微调、Webhook、延迟、量化……），配一句中文
+  定义和一句自然的中文例句。{avoid_words}
+- "quote_of_the_day"：一句真实、可查的科技界名人的话，配作者名字。{avoid_quotes}
+
+只返回 JSON，格式如下：
 {{
-  "summaries": {{ "1": "...", "2": "...", "3": "..." }},
+  "summaries": {{ "1": "发生了什么：……为什么重要（产品视角）：……", "2": "...", "3": "..." }},
   "word_of_the_day": {{ "word": "...", "definition": "...", "example": "..." }},
   "quote_of_the_day": {{ "text": "...", "author": "..." }}
 }}"""
@@ -770,7 +775,7 @@ Return ONLY JSON with this schema:
         )
 
     return {
-        "sections": [{"title": "Top Tech News", "news": news}],
+        "sections": [{"title": "今日 AI / Agent 要闻", "news": news}],
         "word_of_the_day": data.get("word_of_the_day", {}),
         "quote_of_the_day": data.get("quote_of_the_day", {}),
     }
@@ -798,25 +803,143 @@ def _format_date(raw: str) -> str:
     return raw[:24]
 
 
+# --- 信源可信度徽章 ---------------------------------------------------------
+# 只看链接域名，不调任何接口，离线可测。分三档：
+#   官方一手：厂商 / 项目自己的博客、文档、GitHub 仓库页，消息的源头；
+#   主流媒体：有采编团队的主流科技 / 财经媒体；
+#   待核实：其他一切来源，读的时候多留个心眼。
+# 域名表写在这里，方便以后自己增减。匹配按“等于或以 .域名 结尾”算，
+# 所以 www.reuters.com、blog.google 都能命中。
+_OFFICIAL_DOMAINS = (
+    "openai.com",
+    "anthropic.com",
+    "blog.google",
+    "deepmind.google",
+    "developers.googleblog.com",
+    "research.google",
+    "github.blog",
+    "github.com",
+    "docs.github.com",
+    "microsoft.com",
+    "blogs.microsoft.com",
+    "devblogs.microsoft.com",
+    "aws.amazon.com",
+    "amazon.science",
+    "ai.meta.com",
+    "meta.com",
+    "nvidia.com",
+    "huggingface.co",
+    "langchain.com",
+    "tavily.com",
+    "groq.com",
+    "cloudflare.com",
+    "vercel.com",
+    "supabase.com",
+)
+
+_MEDIA_DOMAINS = (
+    "reuters.com",
+    "bloomberg.com",
+    "ft.com",
+    "wsj.com",
+    "theverge.com",
+    "techcrunch.com",
+    "wired.com",
+    "arstechnica.com",
+    "theinformation.com",
+    "engadget.com",
+    "venturebeat.com",
+    "zdnet.com",
+    "sina.com.cn",
+    "36kr.com",
+    "jiemian.com",
+    "huxiu.com",
+    "geekpark.net",
+    "infoq.cn",
+    "pingwest.com",
+)
+
+# 徽章颜色：官方一手用深蓝，主流媒体用灰蓝，待核实用浅黄底深字。
+_BADGE_STYLES = {
+    "official": "background-color:#0B2C4D;color:#ffffff;",
+    "media": "background-color:#5B7A99;color:#ffffff;",
+    "unverified": "background-color:#FFF3CD;color:#7A5B00;",
+}
+
+
+def source_credibility(url: str) -> tuple[str, str]:
+    """给一条新闻链接定信源档位，返回 (徽章文字, 档位英文名)。
+
+    档位只有三档：official（官方一手）、media（主流媒体）、
+    unverified（待核实）。链接为空或解析不出域名时，一律算待核实。
+    """
+    domain = _domain(url).lower()
+    if not domain:
+        return "待核实", "unverified"
+    for base in _OFFICIAL_DOMAINS:
+        if domain == base or domain.endswith("." + base):
+            return "官方一手", "official"
+    for base in _MEDIA_DOMAINS:
+        if domain == base or domain.endswith("." + base):
+            return "主流媒体", "media"
+    return "待核实", "unverified"
+
+
+def _badge_html(url: str) -> str:
+    """把徽章画成 HTML 里的小标签；返回空字符串表示不画（不会发生）。"""
+    label, level = source_credibility(url)
+    style = _BADGE_STYLES[level]
+    return (
+        f'<span style="display:inline-block;font-family:Arial,Helvetica,sans-serif;'
+        f"font-size:11px;font-weight:bold;letter-spacing:1px;padding:2px 8px;"
+        f"border-radius:10px;{style}\">{label}</span>"
+    )
+
+
+def _split_summary(summary: str) -> tuple[str, str]:
+    """把摘要拆成（发生了什么， 为什么重要）两段。
+
+    模型按固定格式写，中间以“为什么重要（产品视角）："分隔；拆不开时
+    （比如写作失败回退到原文片段），整段都算“发生了什么”。
+    """
+    marker = "为什么重要（产品视角）："
+    if marker in summary:
+        what, why = summary.split(marker, 1)
+        what = what.replace("发生了什么：", "", 1).strip()
+        return what, why.strip()
+    return summary.strip(), ""
+
+
 def _news_item_html(item: dict) -> str:
     title = item.get("title", "Untitled")
     url = item.get("url", "#")
     summary = item.get("summary", "")
     source = _domain(url)
     pub_date = _format_date(item.get("date", ""))
-    meta = f"Source — {source}"
+    meta = f"来源：{source}"
     if pub_date:
         meta += f" &nbsp;&middot;&nbsp; {pub_date}"
+    badge = _badge_html(url)
+    what, why = _split_summary(summary)
+    summary_html = (
+        f'<p style="margin:0 0 8px;font-family:Georgia,\'Times New Roman\',serif;font-size:15px;'
+        f"line-height:1.65;color:#2b2b2b;text-align:justify;\"><b>发生了什么：</b>{what}</p>"
+    )
+    if why:
+        summary_html += (
+            f'<p style="margin:0 0 8px;font-family:Georgia,\'Times New Roman\',serif;font-size:15px;'
+            f"line-height:1.65;color:#2b2b2b;text-align:justify;\"><b>为什么重要（产品视角）：</b>{why}</p>"
+        )
     return f"""
         <div style="margin:0 0 26px;">
           <a href="{url}" style="color:#111111;text-decoration:none;">
             <h3 style="margin:0 0 8px;font-family:Georgia,'Times New Roman',serif;
                        font-size:20px;font-weight:700;line-height:1.3;color:#111111;">{title}</h3>
           </a>
-          <p style="margin:0 0 8px;font-family:Georgia,'Times New Roman',serif;font-size:15px;
-                    line-height:1.65;color:#2b2b2b;text-align:justify;">{summary}</p>
+          {badge}
+          {summary_html}
           <a href="{url}" style="font-family:Arial,Helvetica,sans-serif;font-size:11px;
-                    letter-spacing:1px;text-transform:uppercase;color:#0B2C4D;
+                    letter-spacing:1px;color:#0B2C4D;
                     text-decoration:none;font-weight:bold;">{meta} &rsaquo;</a>
         </div>"""
 
@@ -839,8 +962,8 @@ def _render_html(briefing: dict, today: str) -> str:
     """Render the briefing dict into a newspaper-style HTML email."""
     sections_html = "".join(_section_html(s) for s in briefing.get("sections", []))
 
-    # No personal address here — this footer goes out in every clone's briefing.
-    footer = "Curated by your AI Agent"
+    # 底部不写个人信息——这行字会出现在每个 clone 出来的简报里。
+    footer = "由你的 AI Agent 精选"
     if CFG.footer_note:
         footer += f" &nbsp;|&nbsp; {CFG.footer_note}"
 
@@ -853,7 +976,7 @@ def _render_html(briefing: dict, today: str) -> str:
         <div style="margin-top:34px;border:1px solid #c9c2b4;background-color:#f6f3ec;padding:20px;">
           <div style="font-family:Arial,Helvetica,sans-serif;font-size:11px;font-weight:bold;
                       letter-spacing:2px;text-transform:uppercase;color:#0B2C4D;margin-bottom:10px;">
-            Word of the Day
+            每日一词
           </div>
           <div style="font-family:Georgia,'Times New Roman',serif;font-size:22px;font-weight:700;
                       color:#111111;margin-bottom:6px;">{word.get('word', '')}</div>
@@ -880,7 +1003,7 @@ def _render_html(briefing: dict, today: str) -> str:
               border-left:1px solid #ddd;border-right:1px solid #ddd;">
     <div style="padding:30px 36px 18px;text-align:center;border-bottom:4px double #111111;">
       <div style="font-family:Arial,Helvetica,sans-serif;font-size:11px;letter-spacing:3px;
-                  text-transform:uppercase;color:#0B2C4D;margin-bottom:8px;">Curated by your AI Agent</div>
+                  text-transform:uppercase;color:#0B2C4D;margin-bottom:8px;">由你的 AI Agent 精选</div>
       <h1 style="margin:0;font-family:Georgia,'Times New Roman',serif;font-size:38px;
                  font-weight:700;letter-spacing:1px;color:#111111;line-height:1.1;">{CFG.title}</h1>
       <div style="font-family:Arial,Helvetica,sans-serif;font-size:12px;letter-spacing:2px;
@@ -901,11 +1024,13 @@ def _render_html(briefing: dict, today: str) -> str:
 
 
 def render_text(subject: str, payload: dict) -> str:
-    """Render the briefing as plain text, for the --dry-run console preview."""
+    """把简报渲染成纯文本，给 --dry-run 在终端预览用。"""
     lines = [subject, "=" * len(subject), ""]
     for i, article in enumerate(payload.get("articles", []), start=1):
+        badge = article.get("badge", "")
+        badge_text = f"【{badge}】" if badge else ""
         lines += [
-            f"{i}. {article.get('title', '')}",
+            f"{i}. {article.get('title', '')} {badge_text}",
             f"   {article.get('summary', '')}",
             f"   -> {article.get('url', '')}",
             "",
@@ -914,7 +1039,7 @@ def render_text(subject: str, payload: dict) -> str:
     word = payload.get("word", {})
     if word.get("word"):
         lines += [
-            f"WORD OF THE DAY — {word.get('word', '')}",
+            f"每日一词 — {word.get('word', '')}",
             f"   {word.get('definition', '')}",
             f"   \"{word.get('example', '')}\"",
             "",
@@ -948,10 +1073,15 @@ def build_briefing() -> tuple[str, str, dict]:
     html_body = _render_html(briefing, today)
     written = [n for section in briefing.get("sections", []) for n in section.get("news", [])]
     payload = {
-        # `summary` rides along so --dry-run can print a plaintext preview without a
-        # second LLM call; history.record_sent only ever reads url/title.
+        # `summary` 跟着走，这样 --dry-run 不用再调一次模型就能打印纯文本预览；
+        # history.record_sent 只读 url/title。`badge` 是信源可信度徽章文字。
         "articles": [
-            {"url": n.get("url", ""), "title": n.get("title", ""), "summary": n.get("summary", "")}
+            {
+                "url": n.get("url", ""),
+                "title": n.get("title", ""),
+                "summary": n.get("summary", ""),
+                "badge": source_credibility(n.get("url", ""))[0],
+            }
             for n in written
         ],
         "word": briefing.get("word_of_the_day", {}),

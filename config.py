@@ -22,10 +22,11 @@ _DEFAULT_MODEL = "openai/gpt-oss-120b"
 _DEFAULT_MODEL_FALLBACKS = ["openai/gpt-oss-20b", "qwen/qwen3.8-27b"]
 
 # Used when config.yaml is absent/unreadable so the agent never hard-fails on config.
+# 中文起点版：默认主题同样只盯 AI / Agent，和 config.yaml 保持一致。
 _DEFAULT_TOPICS = [
-    "AI & LLMs (GPT, Claude, Gemini, agents, MCP)",
-    "automation & no-code (n8n, Zapier, Make)",
-    "shipping & logistics tech",
+    "AI & LLMs (GPT, Claude, Gemini, agents, LangChain/LangGraph, MCP)",
+    "AI Agent 产品与开源项目 (agents, MCP, LangGraph, CrewAI, Browser Use, n8n)",
+    "AI 编程与开发者工具 (GitHub Copilot, Claude Code, Codex, Cursor, OpenCode)",
 ]
 
 
